@@ -1,60 +1,64 @@
 import os
+import openai
 import requests
 from flask import Flask, request, jsonify
 
+# Load environment variables (e.g., WHOP_API_KEY and OPENAI_API_KEY)
+openai.api_key = os.getenv("OPENAI_API_KEY")
+WHOP_API_KEY = os.getenv("WHOP_API_KEY")
+
 app = Flask(__name__)
 
-WHOP_API_KEY = os.getenv("WHOP_API_KEY")
-WHOP_BASE_URL = "https://api.whop.com/api/v2"   # adjust if the version/path differs
-
-def has_active_whop_subscription(user_whop_id: str) -> bool:
-    """Check via Whop API whether this user has an active subscription."""
-    if not user_whop_id:
-        return False
-    url = f"{WHOP_BASE_URL}/members/{user_whop_id}"
+# Verify license via Whop API
+def verify_whop_license(license_key):
+    url = "https://api.whop.com/api/v2/licenses/verify"
     headers = {
         "Authorization": f"Bearer {WHOP_API_KEY}",
-        "Accept": "application/json"
+        "Content-Type": "application/json"
     }
-    resp = requests.get(url, headers=headers)
-    if resp.status_code != 200:
-        # optionally log error
-        return False
-    data = resp.json()
-    # inspect what the status field is in Whop's response:
-    # Could be data["status"] or data["membership"]["status"] etc.
-    status = data.get("status") or data.get("membership", {}).get("status")
-    # Whop may have multiple states: "active", "cancelled", "expired" etc.
-    return status == "active"
+    data = {
+        "key": license_key
+    }
 
-def get_user_whop_id_from_request(req):
-    """Extract user whop ID. Could be from JWT, session, header etc."""
-    # Example: from a header
-    return req.headers.get("X-Whop-User-Id")
-    # or if using auth tokens: decode token to get whop_id
+    response = requests.post(url, headers=headers, json=data)
 
-@app.route('/ask', methods=['POST'])
+    if response.status_code == 200:
+        return response.json()  # License is valid
+    else:
+        return None  # Invalid or error
+
+@app.route("/ask", methods=["POST"])
 def ask():
-    # Step 1: authenticate user
-    # (Assume you already have some auth mechanism)
-    
-    # Step 2: check subscription
-    whop_id = get_user_whop_id_from_request(request)
-    if not whop_id:
-        return jsonify({"error": "Missing Whop user ID"}), 401
-    
-    if not has_active_whop_subscription(whop_id):
-        return jsonify({"error": "No active subscription"}), 403
-    
-    # Step 3: process /ask logic
-    # e.g. get prompt from request body, send to OpenAI etc.
-    prompt = request.json.get("prompt")
-    if not prompt:
-        return jsonify({"error": "Missing prompt"}), 400
-    
-    # … your existing logic to handle ask
-    answer = do_ai_respond(prompt)
-    return jsonify({"answer": answer})
+    data = request.get_json()
+    user_input = data.get("message")
+    license_key = data.get("license_key")
+
+    if not user_input or not license_key:
+        return jsonify({"error": "Missing 'message' or 'license_key'"}), 400
+
+    # Verify Whop license key
+    license_info = verify_whop_license(license_key)
+
+    if not license_info or not license_info.get("valid"):
+        return jsonify({"error": "Invalid or expired license key"}), 403
+
+    try:
+        # Proceed to OpenAI if license is valid
+        response = openai.Completion.create(
+            engine="text-davinci-003",  # Or use gpt-3.5-turbo with openai.ChatCompletion
+            prompt=user_input,
+            max_tokens=150,
+            n=1,
+            stop=None,
+            temperature=0.7
+        )
+
+        answer = response.choices[0].text.strip()
+        return jsonify({"response": answer})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
