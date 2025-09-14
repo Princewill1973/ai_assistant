@@ -41,7 +41,7 @@ def ask():
     
 @app.route("/", methods=["GET"])
 def home():
-    return "✅ Flask is running on Render! Use POST /ask with JSON { 'message': '...', 'license_key': '.
+    return "✅ Flask is running on Render! Use POST /ask with JSON { 'message': '...', 'license_key': '.}
 
     if not user_input or not license_key:
         return jsonify({"error": "Missing 'message' or 'license_key'"}), 400
