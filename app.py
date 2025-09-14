@@ -1,7 +1,7 @@
 import os
 import openai
 import requests
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 
 # Accessing environment variables
 openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -12,7 +12,7 @@ db_host = os.getenv("DB_HOST")
 openai.api_key = openai_api_key
 WHOP_API_KEY = os.getenv("WHOP_API_KEY")
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder="templates")
 
 # Verify license via Whop API
 def verify_whop_license(license_key):
@@ -37,6 +37,12 @@ def verify_whop_license(license_key):
 @app.route("/", methods=["GET"])
 def home():
     return "✅ Flask is running on Render! Use POST /ask with JSON { 'message': '...', 'license_key': '...' }"
+
+
+# ✅ Serve Web Chat UI
+@app.route("/chat", methods=["GET"])
+def chat_ui():
+    return render_template("chat.html")
 
 
 # ✅ Extra GET for /ask (browser test only)
@@ -64,17 +70,18 @@ def ask():
         return jsonify({"error": "Invalid or expired license key"}), 403
 
     try:
-        # Proceed to OpenAI if license is valid
-        response = openai.Completion.create(
-            engine="text-davinci-003",  # Or gpt-3.5-turbo via ChatCompletion
-            prompt=user_input,
-            max_tokens=150,
-            n=1,
-            stop=None,
+        # ✅ Use Chat API (better than Completions)
+        response = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a helpful AI personal assistant."},
+                {"role": "user", "content": user_input}
+            ],
+            max_tokens=300,
             temperature=0.7
         )
 
-        answer = response.choices[0].text.strip()
+        answer = response["choices"][0]["message"]["content"].strip()
         return jsonify({"response": answer})
 
     except Exception as e:
@@ -83,3 +90,4 @@ def ask():
 
 if __name__ == "__main__":
     app.run(debug=True)
+￼Enter
