@@ -9,7 +9,7 @@ anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
 db_host = os.getenv("DB_HOST")
 
 # Load environment variables (e.g., WHOP_API_KEY and OPENAI_API_KEY)
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = openai_api_key
 WHOP_API_KEY = os.getenv("WHOP_API_KEY")
 
 app = Flask(__name__)
@@ -32,16 +32,27 @@ def verify_whop_license(license_key):
     else:
         return None  # Invalid or error
 
+
+# ✅ Homepage (so browser GET / works)
+@app.route("/", methods=["GET"])
+def home():
+    return "✅ Flask is running on Render! Use POST /ask with JSON { 'message': '...', 'license_key': '...' }"
+
+
+# ✅ Extra GET for /ask (browser test only)
+@app.route("/ask", methods=["GET"])
+def ask_get():
+    return jsonify({
+        "info": "This endpoint expects POST with JSON: { 'message': '...', 'license_key': '...' }"
+    })
+
+
+# ✅ Main AI route
 @app.route("/ask", methods=["POST"])
 def ask():
     data = request.get_json()
     user_input = data.get("message")
     license_key = data.get("license_key")
-    
-    
-@app.route("/", methods=["GET"])
-def home():
-    return "✅ Flask is running on Render! Use POST /ask with JSON { 'message': '...', 'license_key': '.}
 
     if not user_input or not license_key:
         return jsonify({"error": "Missing 'message' or 'license_key'"}), 400
@@ -55,7 +66,7 @@ def home():
     try:
         # Proceed to OpenAI if license is valid
         response = openai.Completion.create(
-            engine="text-davinci-003",  # Or use gpt-3.5-turbo with openai.ChatCompletion
+            engine="text-davinci-003",  # Or gpt-3.5-turbo via ChatCompletion
             prompt=user_input,
             max_tokens=150,
             n=1,
@@ -69,12 +80,6 @@ def home():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Optional: allow quick GET test for /ask in the browser
-@app.route("/ask", methods=["GET"])
-def ask_get():
-    return jsonify({
-        "info": "This endpoint expects POST with JSON: { 'message': '...', 'license_key': '...' }"
-    })
 
 if __name__ == "__main__":
     app.run(debug=True)
