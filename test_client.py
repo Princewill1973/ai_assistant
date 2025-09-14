@@ -12,7 +12,7 @@ def ask_ai(message):
         "license_key": LICENSE_KEY
 
     try:
-        response = requests.post(BASE_URL, json=payload)
+        response = requests.post(BASE_URL, json=payload) # ✅ POST
         response.raise_for_status()  # Raise error for HTTP issues
         return response.json()
     except requests.exceptions.RequestException as e:
