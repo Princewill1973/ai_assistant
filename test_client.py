@@ -4,7 +4,7 @@ import requests
 BASE_URL = "https://ai-personal-assistant-i0rr.onrender.com//ask"
 
 # Replace this with your real Whop license key
-LICENSE_KEY = "app_D6EQKbURvMcwiw"
+LICENSE_KEY = "RkTbUslM41JIVWaJkmjGtH6pIEVokzkfrK2vGtO1XkA"
 
 def ask_ai(message):
     payload = {
