@@ -10,7 +10,7 @@ def ask_ai(message):
     payload = {
         "message": message,
         "license_key": LICENSE_KEY
-
+    }
     try:
         response = requests.post(BASE_URL, json=payload) # ✅ POST
         response.raise_for_status()  # Raise error for HTTP issues
