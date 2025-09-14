@@ -3,11 +3,6 @@ import requests
 # Replace this with your actual Render URL (should end with /ask)
 BASE_URL = "https://ai-personal-assistant-i0rr.onrender.com//ask"
 
-# Replace with your valid Whop license keyimport requests
-
-# Replace this with your actual Render URL (should end with /ask)
-BASE_URL = "https://your-app.onrender.com/ask"
-
 # Replace with your valid Whop license key
 LICENSE_KEY = "RkTbUslM41JIVWaJkmjGtH6pIEVokzkfrK2vGtO1XkA"
 
