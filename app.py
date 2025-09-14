@@ -38,9 +38,10 @@ def ask():
     user_input = data.get("message")
     license_key = data.get("license_key")
     
-    @app.route("/", methods=["GET"])
-    def home():
-              return "✅ Flask is running. Use POST /ask with JSON to interact with the AI Assistant."
+    
+@app.route("/", methods=["GET"])
+def home():
+    return "✅ Flask is running on Render! Use POST /ask with JSON { 'message': '...', 'license_key': '.
 
     if not user_input or not license_key:
         return jsonify({"error": "Missing 'message' or 'license_key'"}), 400
@@ -68,6 +69,12 @@ def ask():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# Optional: allow quick GET test for /ask in the browser
+@app.route("/ask", methods=["GET"])
+def ask_get():
+    return jsonify({
+        "info": "This endpoint expects POST with JSON: { 'message': '...', 'license_key': '...' }"
+    })
 
 if __name__ == "__main__":
     app.run(debug=True)
