@@ -2,6 +2,16 @@ import os
 import openai
 import requests
 from flask import Flask, request, jsonify
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Accessing environment variables
+openai_api_key = os.getenv("OPENAI_API_KEY")
+anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
+db_host = os.getenv("DB_HOST")
 
 # Load environment variables (e.g., WHOP_API_KEY and OPENAI_API_KEY)
 openai.api_key = os.getenv("OPENAI_API_KEY")
