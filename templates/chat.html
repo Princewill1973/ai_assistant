@@ -1,1 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Personal Assistant</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f9;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .chat-container {
+      width: 400px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .messages {
+      flex: 1;
+      padding: 15px;
+      overflow-y: auto;
+      border-bottom: 1px solid #ddd;
+    }
+    .message {
+      margin-bottom: 10px;
+    }
+    .message.user {
+      text-align: right;
+      color: blue;
+    }
+    .message.ai {
+      text-align: left;
+      color: green;
+    }
+    .input-container {
+      display: flex;
+      border-top: 1px solid #ddd;
+    }
+    input {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      outline: none;
+    }
+    button {
+      padding: 10px 15px;
+      border: none;
+      background: #4CAF50;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    #license-section {
+      padding: 20px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <!-- License key input -->
+    <div id="license-section">
+      <h3>Enter License Key</h3>
+      <input type="text" id="license-key" placeholder="Enter your Whop license key">
+      <button onclick="saveLicense()">Submit</button>
+    </div>
+
+    <!-- Chat area -->
+    <div id="chat-section" style="display:none; flex:1; flex-direction:column;">
+      <div class="messages" id="messages"></div>
+      <div class="input-container">
+        <input type="text" id="user-input" placeholder="Type a message...">
+        <button onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let licenseKey = null;
+
+    function saveLicense() {
+      const input = document.getElementById("license-key").value.trim();
+      if (!input) {
+        alert("Please enter a license key.");
+        return;
+      }
+      licenseKey = input;
+      document.getElementById("license-section").style.display = "none";
+      document.getElementById("chat-section").style.display = "flex";
+    }
+
+    function addMessage(sender, text) {
+      const messagesDiv = document.getElementById("messages");
+      const messageElem = document.createElement("div");
+      messageElem.classList.add("message", sender);
+      messageElem.innerText = text;
+      messagesDiv.appendChild(messageElem);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const userInput = document.getElementById("user-input").value.trim();
+      if (!userInput) return;
+      if (!licenseKey) {
+        alert("License key missing.");
+        return;
+      }
+
+      addMessage("user", userInput);
+      document.getElementById("user-input").value = "";
+
+      try {
+        const response = await fetch("/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: userInput, license_key: licenseKey })
+        });
+
+        const data = await response.json();
+        if (data.response) {
+          addMessage("ai", data.response);
+        } else {
+          addMessage("ai", "⚠️ " + (data.error || "Error"));
+        }
+      } catch (err) {
+        addMessage("ai", "⚠️ Request failed: " + err.message);
+      }
+    }
+  </script>
+</body>
+</html>
 
