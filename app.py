@@ -40,7 +40,7 @@ def ask():
     
     @app.route("/", methods=["GET"])
     def home():
-    return "✅ Flask is running. Use POST /ask with JSON to interact with the AI Assistant."
+              return "✅ Flask is running. Use POST /ask with JSON to interact with the AI Assistant."
 
     if not user_input or not license_key:
         return jsonify({"error": "Missing 'message' or 'license_key'"}), 400
