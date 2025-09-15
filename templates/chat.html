@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Assistant</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 0; }
+    #chat { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);}
+    #messages { height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px;}
+    .msg { margin: 5px 0; }
+    .user { color: blue; font-weight: bold; }
+    .bot { color: green; font-weight: bold; }
+    #inputArea { display: flex; gap: 5px; }
+    input, button { padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+    button { cursor: pointer; background: #007bff; color: #fff; border: none; }
+    button:hover { background: #0056b3; }
+    #buy { display: block; text-align: center; margin: 20px auto; padding: 12px; background: #28a745; color: #fff; border-radius: 8px; text-decoration: none; font-weight: bold; }
+    #buy:hover { background: #218838; }
+  </style>
+</head>
+<body>
+  <div id="chat">
+    <h2>AI Assistant</h2>
+    <a id="buy" href="https://whop.com/checkout/YOUR_PRODUCT_ID" target="_blank">💳 Buy License</a>
+    <p>Enter your license key:</p>
+    <input id="license" type="text" placeholder="Enter license key" style="width:100%; margin-bottom:10px;">
+    
+    <div id="messages"></div>
+    <div id="inputArea">
+      <input id="userInput" type="text" placeholder="Type a message..." style="flex:1;">
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+  <script>
+    async function sendMessage() {
+      const msg = document.getElementById("userInput").value;
+      const license = document.getElementById("license").value;
+      if (!msg || !license) {
+        alert("Enter a message and license key.");
+        return;
+      }
+      
+      addMessage("user", msg);
+      document.getElementById("userInput").value = "";
+
+      const res = await fetch("/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg, license_key: license })
+      });
+
+      const data = await res.json();
+      if (data.response) {
+        addMessage("bot", data.response);
+      } else {
+        addMessage("bot", "⚠️ " + (data.error || "Unknown error"));
+      }
+    }
+
+    function addMessage(role, text) {
+      const div = document.createElement("div");
+      div.classList.add("msg");
+      div.innerHTML = `<span class="${role}">${role}:</span> ${text}`;
+      document.getElementById("messages").appendChild(div);
+      document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+    }
+  </script>
+</body>
+</html>
+Enter
