@@ -1,102 +1,54 @@
 import os
 import hmac
 import hashlib
-import openai
+import json
 import requests
-from flask import Flask, request, jsonify, abort, session, render_template_string
+import boto3
+import openai
+from flask import Flask, request, jsonify
 
-# Flask setup
+# ========== CONFIG ==========
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "super-secret-key")  # needed for session
 
-# Environment variables
 openai.api_key = os.getenv("OPENAI_API_KEY")
 WHOP_API_KEY = os.getenv("WHOP_API_KEY")
 WHOP_WEBHOOK_SECRET = os.getenv("WHOP_WEBHOOK_SECRET")
 
-# -------------------------------
-# HTML template for web chat
-# -------------------------------
-chat_html = """
-<!DOCTYPE html>
-<html>
-<head>
-  <title>AI Personal Assistant</title>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f4f4f9; padding: 20px; }
-    #chatbox { width: 100%; max-width: 600px; margin: auto; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1);}
-    .message { margin: 10px 0; }
-    .user { text-align: right; color: blue; }
-    .assistant { text-align: left; color: green; }
-    input, button { padding: 10px; margin: 5px; }
-  </style>
-</head>
-<body>
-  <div id="chatbox">
-    <h2>🤖 AI Personal Assistant</h2>
-    <div id="messages"></div>
-    <input id="license" type="text" placeholder="Enter your license key" style="width:100%; margin-bottom:10px;" />
-    <input id="message" type="text" placeholder="Type a message..." style="width:80%;" />
-    <button onclick="sendMessage()">Send</button>
-  </div>
+# AWS S3
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+    region_name=os.getenv("AWS_REGION")
+)
+S3_BUCKET = os.getenv("S3_BUCKET")
 
-<script>
-async function sendMessage() {
-  const licenseKey = document.getElementById("license").value;
-  const message = document.getElementById("message").value;
-  if (!licenseKey || !message) {
-    alert("Enter both license key and message!");
-    return;
-  }
-  document.getElementById("messages").innerHTML += "<div class='message user'><b>You:</b> " + message + "</div>";
-  document.getElementById("message").value = "";
+# ========== IN-MEMORY LICENSE STORE ==========
+licenses = {}  # { license_key: {"status": "active", "user": "..."} }
 
-  const res = await fetch("/ask", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ license_key: licenseKey, message: message })
-  });
+# ========== HELPERS ==========
 
-  const data = await res.json();
-  if (data.response) {
-    document.getElementById("messages").innerHTML += "<div class='message assistant'><b>AI:</b> " + data.response + "</div>";
-  } else {
-    document.getElementById("messages").innerHTML += "<div class='message assistant'><b>Error:</b> " + (data.error || "Unknown error") + "</div>";
-  }
-}
-</script>
-</body>
-</html>
-"""
-
-# -------------------------------
-# 1️⃣ Homepage with web UI
-# -------------------------------
-@app.route("/", methods=["GET"])
-def home():
-    return render_template_string(chat_html)
-
-# -------------------------------
-# Verify license via Whop API
-# -------------------------------
 def verify_whop_license(license_key):
+    """Call Whop API if not found in local DB"""
     url = "https://api.whop.com/api/v2/licenses/verify"
-    headers = {
-        "Authorization": f"Bearer {WHOP_API_KEY}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {WHOP_API_KEY}"}
     data = {"key": license_key}
-
     response = requests.post(url, headers=headers, json=data)
-    print("Whop response:", response.json())
 
     if response.status_code == 200:
         return response.json()
     return None
 
-# -------------------------------
-# 2️⃣ AI Assistant route with memory
-# -------------------------------
+def upload_to_s3(file_path, key_name, content_type):
+    s3.upload_file(file_path, S3_BUCKET, key_name, ExtraArgs={'ContentType': content_type})
+    return f"https://{S3_BUCKET}.s3.amazonaws.com/{key_name}"
+
+# ========== ROUTES ==========
+
+@app.route("/")
+def home():
+    return "✅ Flask AI Assistant running. Use /ask for chat, /webhook/whop for Whop events."
+
 @app.route("/ask", methods=["POST"])
 def ask():
     data = request.get_json()
@@ -104,73 +56,78 @@ def ask():
     license_key = data.get("license_key")
 
     if not user_input or not license_key:
-        return jsonify({"error": "Missing 'message' or 'license_key'"}), 400
+        return jsonify({"error": "Missing message or license_key"}), 400
 
-    # Verify Whop license
-    license_info = verify_whop_license(license_key)
-    if not license_info or not license_info.get("valid"):
-        return jsonify({"error": "Invalid or expired license key"}), 403
+    # 1. Check local DB first
+    lic = licenses.get(license_key)
+    if not lic or lic["status"] != "active":
+        lic = verify_whop_license(license_key)
+        if not lic or lic.get("data", {}).get("status") != "active":
+            return jsonify({"error": "Invalid or expired license"}), 403
+        # store active license in memory
+        licenses[license_key] = {"status": "active", "user": lic.get("data", {}).get("user_id")}
 
-    # Init chat history in session
-    if "history" not in session:
-        session["history"] = []
-
-    # Append user input
-    session["history"].append({"role": "user", "content": user_input})
-
+    # 2. AI response
     try:
-        # Generate response from OpenAI Chat API
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "system", "content": "You are a helpful AI personal assistant."}] + session["history"],
-            max_tokens=300,
-            temperature=0.7
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": user_input}]
         )
-        answer = response["choices"][0]["message"]["content"].strip()
-
-        # Append assistant response
-        session["history"].append({"role": "assistant", "content": answer})
-
+        answer = response.choices[0].message["content"].strip()
         return jsonify({"response": answer})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# -------------------------------
-# 4️⃣ Whop Webhook verification
-# -------------------------------
+# ========== WHOP WEBHOOK ==========
 @app.route("/webhook/whop", methods=["POST"])
 def whop_webhook():
-    payload = request.data
-    signature = request.headers.get("X-Whop-Signature")
+    sig = request.headers.get("Whop-Signature")
+    body = request.data
 
-    if not WHOP_WEBHOOK_SECRET:
-        return abort(500, "Webhook secret not configured")
+    # verify HMAC
+    digest = hmac.new(WHOP_WEBHOOK_SECRET.encode(), body, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(digest, sig):
+        return "Invalid signature", 400
 
-    # Compute expected signature
-    expected_signature = hmac.new(
-        WHOP_WEBHOOK_SECRET.encode(),
-        msg=payload,
-        digestmod=hashlib.sha256
-    ).hexdigest()
+    event = request.json
+    license_key = event.get("data", {}).get("license")
+    status = event.get("data", {}).get("status")
 
-    # Validate
-    if not hmac.compare_digest(expected_signature, signature or ""):
-        return abort(400, "Invalid signature")
+    if license_key:
+        licenses[license_key] = {"status": status}
+        print(f"Webhook updated license {license_key}: {status}")
 
-    event = request.get_json()
-    event_type = event.get("type")
+    return "ok", 200
 
-    # Handle events
-    if event_type == "license.activated":
-        print("✅ License activated:", event)
-    elif event_type == "license.revoked":
-        print("❌ License revoked:", event)
+# ========== OPENAI TTS ==========
+@app.route("/tts", methods=["POST"])
+def tts():
+    data = request.get_json()
+    text = data.get("text", "Hello from AI Assistant")
 
-    return jsonify({"status": "success"})
+    audio_file = "speech.mp3"
+    with openai.audio.speech.with_streaming_response.create(
+        model="gpt-4o-mini-tts",
+        voice="alloy",
+        input=text
+    ) as response:
+        response.stream_to_file(audio_file)
 
-# -------------------------------
-# Run app
-# -------------------------------
+    url = upload_to_s3(audio_file, "speech.mp3", "audio/mpeg")
+    return jsonify({"url": url})
+
+# ========== OPENAI IMAGE ==========
+@app.route("/image", methods=["POST"])
+def image():
+    data = request.get_json()
+    prompt = data.get("prompt", "AI generated art")
+
+    result = openai.images.generate(model="gpt-image-1", prompt=prompt, size="512x512")
+    img_url = result.data[0].url
+    return jsonify({"url": img_url})
+
+# TODO: FFmpeg video generation routes can be added here.
+
 if __name__ == "__main__":
     app.run(debug=True)
