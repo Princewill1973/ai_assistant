@@ -54,6 +54,63 @@ def ask():
     data = request.get_json()
     user_input = data.get("message")
     license_key = data.get("license_key")
+    # ✅ Text-to-Speech (TTS) endpoint
+@app.route("/tts", methods=["POST"])
+def tts():
+    data = request.get_json()
+    text = data.get("text")
+    license_key = data.get("license_key")
+
+    # First check license in-memory
+    license_status = licenses_db.get(license_key)
+    if not license_status or license_status != "active":
+        return jsonify({"error": "Invalid or expired license key"}), 403
+
+    try:
+        import base64
+        from openai import OpenAI
+        client = OpenAI(api_key=openai_api_key)
+
+        # Generate speech
+        audio_response = client.audio.speech.create(
+            model="gpt-4o-mini-tts",
+            voice="alloy",
+            input=text
+        )
+
+        # Return Base64 string to frontend
+        audio_base64 = base64.b64encode(audio_response.read()).decode("utf-8")
+        return jsonify({"audio": audio_base64})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ✅ Text-to-Image endpoint
+@app.route("/image", methods=["POST"])
+def generate_image():
+    data = request.get_json()
+    prompt = data.get("prompt")
+    license_key = data.get("license_key")
+
+    # First check license in-memory
+    license_status = licenses_db.get(license_key)
+    if not license_status or license_status != "active":
+        return jsonify({"error": "Invalid or expired license key"}), 403
+
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=openai_api_key)
+
+        img_response = client.images.generate(
+            model="gpt-4o-mini",
+            prompt=prompt,
+            size="512x512"
+        )
+
+        return jsonify({"image_url": img_response.data[0].url})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
     if not user_input or not license_key:
         return jsonify({"error": "Missing message or license_key"}), 400
