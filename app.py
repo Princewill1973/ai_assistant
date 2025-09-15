@@ -47,7 +47,7 @@ def upload_to_s3(file_path, key_name, content_type):
 
 @app.route("/")
 def home():
-    return "✅ Flask AI Assistant running. Use /ask for chat, /webhook/whop for Whop events."
+    return render_template("chat.html")
 
 @app.route("/ask", methods=["POST"])
 def ask():
