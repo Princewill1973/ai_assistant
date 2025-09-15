@@ -88,6 +88,8 @@ def verify_whop_license(license_key):
     data = {"key": license_key}
 
     response = requests.post(url, headers=headers, json=data)
+    print("Whop response:", response.json())
+
     if response.status_code == 200:
         return response.json()
     return None
