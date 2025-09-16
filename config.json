@@ -1,0 +1,13 @@
+{
+  "app_name": "AI Personal Assistant",
+  "description": "An AI-powered personal assistant with chat, speech, and media generation. Users purchase a license through Whop to unlock access.",
+  "s3": {
+    "bucket": "your-s3-bucket-name",
+    "region": "us-east-1"
+  },
+  "ffmpeg_templates": {
+    "intro": "assets/intro.mp4",
+    "outro": "assets/outro.mp4"
+  }
+}
+ Enter
