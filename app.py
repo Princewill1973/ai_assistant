@@ -3,10 +3,10 @@ import json
 import uuid
 import requests
 import subprocess
-import boto3
-from flask import Flask, request, jsonify
 import openai
-from botocore.exceptions import NoCredentialsError
+import cloudinary
+import cloudinary.uploader
+from flask import Flask, request, jsonify
 
 # -------------------------
 # Load Config
@@ -18,12 +18,11 @@ with open("config.json") as f:
 openai.api_key = os.getenv("OPENAI_API_KEY")
 WHOP_API_KEY = os.getenv("WHOP_API_KEY")
 
-# AWS S3 setup
-s3 = boto3.client(
-    "s3",
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-    region_name=config["s3"]["region"]
+# Cloudinary setup
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET")
 )
 
 # Flask app
@@ -38,12 +37,16 @@ sessions = {}      # { license_key: [messages] }
 # -------------------------
 # Helpers
 # -------------------------
-def upload_to_s3(file_path, file_type="application/octet-stream"):
+def upload_to_cloudinary(file_path, resource_type="auto"):
     try:
-        key = f"outputs/{uuid.uuid4().hex}-{os.path.basename(file_path)}"
-        s3.upload_file(file_path, config["s3"]["bucket"], key, ExtraArgs={"ContentType": file_type})
-        return f"https://{config['s3']['bucket']}.s3.amazonaws.com/{key}"
-    except NoCredentialsError:
+        result = cloudinary.uploader.upload(
+            file_path,
+            resource_type=resource_type,
+            folder="ai_assistant_outputs"
+        )
+        return result.get("secure_url")
+    except Exception as e:
+        print("Cloudinary upload error:", e)
         return None
 
 def verify_whop_license(license_key):
@@ -88,7 +91,7 @@ def generate_video(audio_file, output_file="output.mp4"):
 
 @app.route("/", methods=["GET"])
 def home():
-    return "✅ AI Personal Assistant API is live!"
+    return "✅ AI Personal Assistant API is live with Cloudinary!"
 
 # Webhook to update license status
 @app.route("/whop/webhook", methods=["POST"])
@@ -163,8 +166,8 @@ def tts():
         ) as response:
             response.stream_to_file(audio_file)
 
-        s3_url = upload_to_s3(audio_file, "audio/mpeg")
-        return jsonify({"audio_url": s3_url})
+        url = upload_to_cloudinary(audio_file, resource_type="video")
+        return jsonify({"audio_url": url})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -217,8 +220,8 @@ def video():
         output_file = f"video_{uuid.uuid4().hex}.mp4"
         generate_video(audio_file, output_file)
 
-        s3_url = upload_to_s3(output_file, "video/mp4")
-        return jsonify({"video_url": s3_url})
+        url = upload_to_cloudinary(output_file, resource_type="video")
+        return jsonify({"video_url": url})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -228,4 +231,3 @@ def video():
 # -------------------------
 if __name__ == "__main__":
     app.run(debug=True)
-    Enter
