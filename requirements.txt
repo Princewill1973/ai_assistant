@@ -1,6 +1,5 @@
 flask
-requests
 openai
-boto3
-python-dotenv
+requests
+cloudinary
 gunicorn
