@@ -1,5 +1,6 @@
 flask
-openai
 requests
-gunicorn
+openai
+boto3
 python-dotenv
+gunicorn
