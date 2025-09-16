@@ -28,11 +28,12 @@
     
     <div id="messages"></div>
     <div id="inputArea">
-      <input id="userInput" type="text" placeholder="Type a message..." style="flex:1;">
-      <button onclick="sendMessage()">Send</button>
-    </div>
-  </div>
-
+  <input id="userInput" type="text" placeholder="Type a message..." style="flex:1;">
+  <button onclick="sendMessage()">Send</button>
+  <button onclick="speakText()">🔊 TTS</button>
+  <button onclick="makeImage()">🖼 Image</button>
+</div
+  
   <script>
     async function sendMessage() {
       const msg = document.getElementById("userInput").value;
